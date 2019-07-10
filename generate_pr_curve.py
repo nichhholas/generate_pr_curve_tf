@@ -225,7 +225,7 @@ class TFRecordExtractor:
                 time_100 = 0
                 for batch in self.images:
                     # try:
-    #                print(batch.shape)
+                    # print(batch.shape)
     #                     print(batch)
                     if(batch.shape[-1]==1):
                         batch = cv2.cvtColor(batch,cv2.COLOR_GRAY2RGB)
