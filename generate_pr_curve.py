@@ -36,12 +36,13 @@ record_dir = FLAGS.record_dir
 
 record_list = glob.glob(record_dir+'/*.record')
 
+#%matplotlib inline
 class TFRecordExtractor:
-    def __init__(self, record_list, graphfile):
+    def __init__(self, tfrecord_file, graphfile):
         
         self.graphfile = graphfile
         
-        self.record_list = record_list
+        # self.tfrecord_file = os.path.abspath(tfrecord_file)
         self.images = []
 #         self.images_ = 
         self.records = []
@@ -120,14 +121,6 @@ class TFRecordExtractor:
     def decode_bytes(self, x):
             return x.decode("utf-8")
     
-    
-    
-    def create_bbox(coords, widths, heights):
-        bboxes = []
-        for i in range(len(coords)):
-            bboxes.append([coords[i], ymaxs[i], widths[i], heights[i],])
-        return bboxes
-    
     def get_annotations(self,objects,filename): ## for each example
         lst = []
         groundtruths = []
@@ -163,10 +156,10 @@ class TFRecordExtractor:
 
         # Pipeline of dataset and iterator 
 #         print('hi')
-        while len(self.record_list)>0:
+        while len(record_list)>0:
             print("enter record list loop")
-            tf_rec = self.record_list.pop()
-            print("Extracting from ", tf_rec)
+            tf_rec = record_list.pop()
+            print(tf_rec)
             tf_rec = os.path.abspath(tf_rec)
 #             dataset = tf.data.TFRecordDataset([self.tfrecord_file])
             dataset = tf.data.TFRecordDataset([tf_rec])
@@ -176,6 +169,7 @@ class TFRecordExtractor:
 
             def decode_bytes(x):
                 return x.decode("utf-8")
+            size = 0
             batch = []
             batch_label = []
             files = []
@@ -184,11 +178,10 @@ class TFRecordExtractor:
                 try:
     #                 Keep extracting data till TFRecord is exhausted
                     print("begin extraction")
-                    size = 0
                     while True:
         #                 while len(self.images[0])<3:
         #                     if size>=32:
-                        # print('append image')
+#                         print('append image')
 
                         self.labels.append(batch_label)
                         size+=1
@@ -207,47 +200,64 @@ class TFRecordExtractor:
                 #                     print(self.get_data(record_data[1]))
 
                 except:
-                    print("Number of images found ", size)
-                    pass
+                        pass
 
-    #             try:
+        try:
 
-        graph_file = self.graphfile
-        print("Running graph_file from "+ graph_file)
-        with tf.gfile.GFile(graph_file, "rb") as f:
-            graph_def = tf.GraphDef()
-            graph_def.ParseFromString(f.read())
+            graph_file = self.graphfile
+            print("Running graph_file from "+ graph_file)
+            with tf.gfile.GFile(graph_file, "rb") as f:
+                graph_def = tf.GraphDef()
+                graph_def.ParseFromString(f.read())
 
-        with tf.Graph().as_default() as graph:
-            tf.import_graph_def(graph_def, name='')
+            with tf.Graph().as_default() as graph:
+                tf.import_graph_def(graph_def, name='')
 
-        with tf.Session(graph=graph) as sess:
-            print('run graph sess')
-            sess.run(tf.global_variables_initializer())
-            input_node = 'image_tensor:0'
-            output_nodes = ['detection_boxes:0', 'detection_scores:0', 'detection_classes:0']
-#                     self.records = []
-#                 for batch in self.images:
-            print("Number of images extracted ", len(self.images))
-            count = 0
-            time_100 = 0
-            for batch in self.images:
-#                     print(batch)
-#                     print(batch)
-                batch_exp = np.expand_dims(batch, axis = 0)
-#                     print(batch)
-                start = time.time()
-                output = sess.run(output_nodes, feed_dict={input_node: batch_exp})
-                end = time.time()
-                count += 1
-                time_100+=(end - start)
-                if(count == 100):
-                    self.time+=time_100
-                    self.num_time_rev += 1
-                self.records.append(output)
-#                     print(output)
-                self.predictions.append(output[2])
-                self.scores.append(output[1])
+            with tf.Session(graph=graph) as sess:
+                print('run graph sess')
+                sess.run(tf.global_variables_initializer())
+                input_node = 'image_tensor:0'
+                output_nodes = ['detection_boxes:0', 'detection_scores:0', 'detection_classes:0']
+    #                     self.records = []
+    #                 for batch in self.images:
+                print(len(self.images))
+                count = 0
+                time_100 = 0
+                for batch in self.images:
+                    # try:
+    #                print(batch.shape)
+    #                     print(batch)
+                    if(batch.shape[-1]==1):
+                        batch = cv2.cvtColor(batch,cv2.COLOR_GRAY2RGB)
+                    batch_exp = np.expand_dims(batch, axis = 0)
+#                         print(batch_exp.shape)
+    #                 print('abou to run sess')
+                    start = time.time()
+                    output = sess.run(output_nodes, feed_dict={input_node: batch_exp})
+                    end = time.time()
+                    count += 1
+                    time_100+=(end - start)
+                    if(count == 100):
+                        self.time+=time_100/100
+                        self.num_time_rev += 1
+                        count = 0
+                        print(time_100/100)
+                        time_100 = 0
+    #                 output = sess.run(output_nodes, feed_dict={input_node: batch_exp})
+    #                 print('here')
+                    self.records.append(output)
+    #                     print(output)
+                    self.predictions.append(output[2])
+                    self.scores.append(output[1])
+                    
+                    # except:
+                    #     pass
+
+
+        except:
+            print("Error occurred during inference")
+            pass
+
 
 
 if __name__ == '__main__':
@@ -255,10 +265,13 @@ if __name__ == '__main__':
     t.extract_data()
 
 
-
 print("Number of filenames ", len(t.filenames))
 print("Number of records ", len(t.records))
 print("Number of groundtruth files ", len(t.groundtruths))
+
+print('Average runtime per 100 frames: ', t.time/t.num_time_rev)
+with open(res_dir,'w') as f:
+    f.write('Average of average runtimes per frame: ' + str(t.time/t.num_time_rev))
 ######## Create Groundtruth (GT) text files ##########
 
 for img in t.groundtruths:
@@ -280,11 +293,11 @@ def create_gt(boxes, scores, preds, filename): #create dic for 1 image
 #         if x==3.0 or x==6.0 or x==8.0:
 #         print(x, int(x) == 1)
         if int(x) == 1:
-            return 'front_vehicle'
-        elif int(x) == 2:
-            return 'rear_vehicle'
-        elif int(x) == 3:
-            return 'side_vehicle'
+            return 'plate'
+        # elif int(x) == 2:
+        #     return 'rear_vehicle'
+        # elif int(x) == 3:
+        #     return 'side_vehicle'
         else:
             # print(x)
             return 'others'
