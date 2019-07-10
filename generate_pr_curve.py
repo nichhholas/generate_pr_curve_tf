@@ -270,7 +270,7 @@ print("Number of records ", len(t.records))
 print("Number of groundtruth files ", len(t.groundtruths))
 
 print('Average runtime per 100 frames: ', t.time/t.num_time_rev)
-with open(res_dir,'w') as f:
+with open(os.path.join(res_dir,'average_runtime.txt'),'w') as f:
     f.write('Average of average runtimes per frame: ' + str(t.time/t.num_time_rev))
 ######## Create Groundtruth (GT) text files ##########
 
